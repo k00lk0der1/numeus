@@ -15,7 +15,7 @@ uniswap_v3_fee_list = [100, 500, 3000, 10000] #From https://docs.uniswap.org/pro
 erc20_abi = open("erc20.abi").read() #Standard ERC20 ABI
 
 uniswapv2_pair_abi = open("uniswapv2pair.abi").read() #UniSwap v2 pair contract ABI
-uniswapv3_pool_abi = open("uniswapv3pool.abi").read() #UniSwap v2 pair contract ABI
+uniswapv3_pool_abi = open("uniswapv3pool.abi").read() #UniSwap v3 pool contract ABI
 
 uniswapv2_factory_abi = open("uniswapv2factory.abi").read() #UniSwap v2 factory contract ABI
 uniswapv3_factory_abi = open("uniswapv3factory.abi").read() #UniSwap v3 factory contract ABI
@@ -108,10 +108,11 @@ def get_uniswap_data(token0addr, token1addr, output_filename, debug=False):
 	
 	#Array to store final dataset
 	data = []
+
 	#Uniswap v2 processing
-	#Get pair address if it exists for the given tokens
+	#Get pair address and check if it exists for the given tokens
 	uniswap_v2_pair_addr = uniswap_v2_factory_contract.functions.getPair(token0addr, token1addr).call()
-	#If non null value returned, add the data to the array
+	#If non null value returned, process and add the data to the array
 	if(check_non_null_address(uniswap_v2_pair_addr)):
 		#Get contract for the pair
 		uniswap_v2_pair_contract = rpc_connection.eth.contract(uniswap_v2_pair_addr, abi=uniswapv2_pair_abi)
@@ -135,20 +136,20 @@ def get_uniswap_data(token0addr, token1addr, output_filename, debug=False):
 		data.append(make_row_dict(2, uniswap_v2_pair_addr, token0addr, token1addr, uniswap_v2_fee, token0usdprice, token1usdprice, token0amount, token1amount,  pool_price))
 	
 	#Uniswap v3 processing
-	#Looping over all possible fee values
+	#Looping over all possible fee values in uniswap v3 fee schedule
 	for fee in uniswap_v3_fee_list:
-		#Get pool address if it exists for the given tokens
+		#Get pool address and check if it exists for the given tokens
 		uniswap_v3_pool_addr = uniswap_v3_factory_contract.functions.getPool(token0addr, token1addr, fee).call()
-		#If non null value returned, add data to array
+		#If non null value returned, process and add data to array
 		if(check_non_null_address(uniswap_v3_pool_addr)):
 			#Get contract for the pool
-			uniswap_v3_pair_contract = rpc_connection.eth.contract(uniswap_v3_pool_addr, abi=uniswapv3_pool_abi)
+			uniswap_v3_pool_contract = rpc_connection.eth.contract(uniswap_v3_pool_addr, abi=uniswapv3_pool_abi)
 			#Get slot0 data which has sqrtpricex96
-			slot0_data = uniswap_v3_pair_contract.functions.slot0().call()
+			slot0_data = uniswap_v3_pool_contract.functions.slot0().call()
 			#Check if token0 from input is token0 for pool contract. Make changes to ensure we get correct price values by flipping if not.
 			#Calculate human readable prices
 			
-			uniswap_pool_v3_contract_token0 = uniswap_v3_pair_contract.functions.token0().call().lower()
+			uniswap_pool_v3_contract_token0 = uniswap_v3_pool_contract.functions.token0().call().lower()
 			if(uniswap_pool_v3_contract_token0==token0addr.lower()):
 				pool_price = slot0_data[0]*slot0_data[0]*pow(10, token0decimals-token1decimals)/pow(2,192)
 			elif(uniswap_pool_v3_contract_token0==token1addr.lower()):
